@@ -1,0 +1,92 @@
+---
+# output: 
+#   pdf_document:
+#     citation_package: natbib
+#     keep_tex: true
+#     fig_caption: true
+#     latex_engine: pdflatex
+#     #template: ~/Dropbox/R_stuff/svm-r-markdown-templates/svm-latex-ms.tex
+
+
+# author:
+#   name: Michael J. Conlin
+#   affiliation: VA Portland Health Care System, Oregon Health & Science University
+#   name: Gregory Adams, M.D.
+#   affiliation: Oregon Health & Science University
+#   name: Chad A. Peterson, M.D.
+#   affiliation: Oregon Health & Science University
+#   name: Brian Duty, M.D.
+#   affiliation: Oregon Health & Science University
+#   name: Eugene Fuchs, M.D.
+#   affiliation: Oregon Health & Science University
+
+
+# spacing: double
+# bibliography: ~/Dropbox/master.bib
+# biblio-style: apsr
+
+title: "The Stone Complexity Index:"
+subtitle: "A New Measure of Stone Burden"
+author: Michael Conlin
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  pdf_document: default
+  html_document: default
+geometry: margin=1in
+fontfamily: mathpazo
+fontsize: 12 pt
+---
+
+```{r global_options, include=FALSE}
+# This code sets the global options for the notebook and its output
+# replace the curly braces above with: {r global_options, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r load_packages}
+# load common dataScience packages using pacman
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, knitr, kableExtra, ggplot2, devtools, broom, readstata13, mosaic, xtable, summarytools)
+```
+
+# INTRODUCTION
+ 
+Stone complexity affects our ability to render a patient stone free successfully. Various ways of capturing a sense of the complexity of a patient’s stone burden have been used, including the number of branches and number of stones. Visually determining these factors are limited by their subjectiveness (“is it a branch or another stone?”) and require a human visual determination. We sought an objective measure of stone complexity that captured more than just branches and fragments, but other levels of geometric complexity of the stone that would be harder to grade visually. This study describes and evaluates the usefulness of the stone complexity index (SCI) in the prediction of stone-free status after percutaneous nephrostolithotomy (PCNL) treatment for large renal calculi. 
+
+# MATERIALS AND METHODS
+We examined the clinical and computed tomography (CT) imaging data of 50 consecutive patients undergoing PCNL from our established database of patients undergoing PCNL at Oregon Health & Science University (OHSU), which is part of our Investigational Review Board (IRB) approved urology data repository. We obtained additional IRB approval for the analysis and reporting of the data for this study. 
+
+## Osirix:
+Osirix is a widely used medical image viewing and processing application that has been available since 2004. Among many advanced image processing capabilities, it allows 3-Dimensional (3D) reconstruction of a selected “region of interest” (ROI) from CT scan images. It also provides an open platform for the development of image processing tools that can be integrated as plug-ins for use within the program. These advanced tools are created and maintained by a large and active community of users. We developed a specific plug-in tool to measure the volume and surface area of a selected 3D ROI and calculate other values including our stone complexity index. We used this plug-in to determine the volume, surface area, and SCI of all ipsilateral stones in our study patients undergoing percutaneous nephrolithotomy.
+
+## Stone Complexity Index:
+Our goal was to develop a measure of stone complexity. Intuitively, the most significant difference between the least geometrically complex 3D object (e.g. a sphere) and a complex staghorn stone, is the surface area. Unfortunately, the surface area also increases with increasing volume of stone (e.g. a larger sphere has a larger surface area but the same “geometric complexity” as a smaller sphere), and we sought an independent measure of complexity. In order to normalize our measure to be independent of the volume, we simply divided the measured surface area of the patient’s total stone burden by the calculated surface area of an imaginary sphere with the same volume of our stone.
+This sounds more complicated than it really is, so for clarity, here is the process in more detail:
+
+1. Select all the stone on the CT scan within Osirix to create our ROI
+2. Measure the stone volume (Vm) and surface area (SAm)
+3. Use Vm to calculate the surface area of an isovolumetric sphere (SAi) (i.e. take all the patient’s stone and turn it into a single perfect sphere)
+4. Determine the stone complexity index = SAm/SAi
+
+The index is simply a ratio of the stone’s surface area and the surface area of an isovolumetric sphere. So the stone complexity index reflects only how complex our stone is compared to an isovolumetric sphere, regardless of the total stone volume.
+
+A patient was determined to be stone-free if there was no stone seen on postoperative CT scan. 
+To determine the ability of the stone complexity index to predict stone-free status after percutaneous nephrolithotomy, we performed univariate and multivariate analysis and included stone parameters such as volume, location, density, etc.
+
+Statistical analyses were performed using Stata 14.2 (StataCorp LP, College Station, Texas) and R: A language and environment for statistical computing. Version 3.5.0 (R Foundation for Statistical Computing, Vienna, Austria).
+
+# RESULTS
+
+RESULTS
+The pre and postoperative CT images and medical records for 50 consecutive patients undergoing PCNL at OHSU were reviewed. There were 18 men and 32 women. The postoperative CT was generally obtained the day following surgery. The stone-free rate based on this imaging study was 80%. The measured and calculated stone measures are shown in table 1. Univariable analysis determined that the stone surface area and stone complexity index were the only factors that were significant predictors of stone-free status.  
+
+# DISCUSSION
+
+Quantification of stone burden in large and complex renal calculi can be useful for choosing the treatment method, surgical planning, and prediction of success. But, what is the best method of determining stone burden and preparing the patient and urologist for the degree of difficulty? Measures of stone burden have included 2-dimensional factors such as maximum diameter, number of branches, number of stones, and an estimate of the surface area (length x width). With the (now more common) use of CT imaging, we can accurately measure the 3-dimensional volume and surface area of stones and better estimate a patient’s total stone burden. While these measures and other patient factors (insert factors used in other measures of stone-free success for PCNL) have been shown to help predict stone-free status after PCNL, we felt that the potentially most predictive stone factor was still missing. Stone volume alone does not (directly) make it more difficult to render a patient stone-free during a PCNL, it only varies the lithotripsy time (i.e. the bigger the stone, the longer your foot is on the pedal). In our experience, residual stones that remained after PCNL were related to branches or fragments that couldn’t be reached or were missed during the procedure. It was the complexity of the stone that tripped us up, not volume. Thus our development of the stone complexity index. This preliminary study seems to indicate the SCI is a useful measure that can help us determine the likelihood of rendering a patient stone-free after PCNL. If used more widely in clinical studies, it may help better compare patient populations across different studies and modalities of treatment. It is our hope that this index may help urologists and their urolithiasis patients determine the best treatment option for their stones in the future. 
+
+# CONCLUSIONS
+- The Stone Complexity Index is a novel method of quantifying stone complexity
+- It can be easily measured by urologists using Osirix software and our plugin
+- Compared to other measures of stone burden, it is more predictive of stone-free status after percutaneous nephrolithotomy
+- It may be useful for useful for predicting success with other methods of stone treatment
+

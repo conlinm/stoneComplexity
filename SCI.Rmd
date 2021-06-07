@@ -1,0 +1,388 @@
+---
+title: "Stone Complexity Index - R Statistics"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+This is the R notebook to update the statistics for the SCI project. 
+## Housekeeping:
+```{r}
+# load common dataScience packages using pacman
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, knitr, kableExtra, readstata13, mosaic, xtable, summarytools, qwraps2)
+```
+
+```{r global_options, include=FALSE}
+# This code sets the global options for the notebook and its output
+# replace the curly braces above with: {r global_options, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+
+
+
+## Load the Data:
+```{r}
+stones <- read.dta13("~/Box Sync/Research-stone complexity/PercSA50.dta",
+  generate.factors = TRUE, nonint.factors = TRUE)
+
+```
+
+### Convert to a tibble
+```{r}
+stones <- as.tibble(stones)
+# str(stones)
+```
+
+## Data Preperation:
+### Dealing with empty values, nulls, nas:
+- Replace 999s with na
+ - use na instead of null as it keeps a spot - not just empty - says there is no value here
+ 
+```{r}
+stones <- na_if(stones, 999)
+```
+ 
+### Factors
+
+```{r}
+# Factors
+factors <- stones[, sapply(stones, is.factor)]
+factorsNames <- names(factors)
+# factorsNames
+
+# Character that might need to be Factors
+chars <- stones[, sapply(stones, is.character)]
+charsNames <- names(chars)
+#charsNames
+```
+
+Look at possible levels in character variables:
+```{r eval=FALSE, include=FALSE}
+stones %>% group_by(infra_or_supra) %>% summarise(count = n())
+view(dfSummary(chars))
+```
+
+Convert Chr to Factors when appropriate using tidyverse 'forcats'
+
+```{r}
+gender_levels <- c("M", "F")
+stones$gender <- factor(stones$gender, levels = gender_levels)
+YesNo_levels <- c("Yes", "No")
+stones$ammoniumacidurate <- factor(stones$ammoniumacidurate, levels = YesNo_levels)
+stones$caox <- factor(stones$caox, levels = YesNo_levels)
+stones$caphos <- factor(stones$caphos, levels = YesNo_levels)
+stones$ct <- factor(stones$ct, levels = YesNo_levels)
+stones$flex_nephroscope <- factor(stones$flex_nephroscope, levels = YesNo_levels)
+stones$renal_pelvis <- factor(stones$renal_pelvis, levels = YesNo_levels)
+stones$staghorn <- factor(stones$staghorn, levels = YesNo_levels)
+stones$stent <- factor(stones$stent, levels = YesNo_levels)
+stones$struvite <- factor(stones$struvite, levels = YesNo_levels)
+stones$upper <- factor(stones$upper, levels = YesNo_levels)
+stones$ureter <- factor(stones$ureter, levels = YesNo_levels)
+access_site_levels <- c("radiology", "infra", "supra 12")
+stones$infra_or_supra <- factor(stones$infra_or_supra, levels = access_site_levels)
+```
+
+### Create new variables:
+any_prior_stone
+any_prior_tx on the same kidney
+tubeless if pcn_type == none
+Note, need to use 
+```{r}
+# any_prior_stone
+stones <- stones %>% mutate(any_prior_stone = if_else(number_previous_stones > 0, "Yes", "No")) 
+stones$any_prior_stone <- factor(stones$any_prior_stone, levels = YesNo_levels)
+
+# any_prior_tx
+stones <- stones %>% mutate(any_prior_tx = if_else(prior_treatment == "none", "Yes", "No")) 
+stones$any_prior_tx <- factor(stones$any_prior_tx, levels = YesNo_levels)
+# tubeless
+stones <- stones %>% mutate(tubeless = if_else(pcn_type == "None", "Yes", "No")) 
+stones$tubeless <- factor(stones$tubeless, levels = YesNo_levels)
+# any_special_anatomy
+stones <- stones %>% mutate(any_special_anatomy = if_else(special_gu_anatomy == "none", "No", "Yes")) 
+stones$any_special_anatomy <- factor(stones$any_special_anatomy, levels = YesNo_levels)
+
+#just need to convert to factor
+stones$uricacid <- factor(stones$uricacid, levels = YesNo_levels)
+stones$cystine <- factor(stones$cystine, levels = YesNo_levels)
+```
+### Check these new variables
+```{r}
+stones_check <- select(stones, number_previous_stones, any_prior_stone, prior_treatment, any_prior_tx, tubeless, any_special_anatomy, residFrag, residual_frags, UAComp, uricacid, CystineComp, cystine, any_special_anatomy, SpecialAnatomy)
+```
+
+I later realized that stone length and stone width were charaters, because they 
+had several entries that included multiple ints separated by a comma. The largest number was always first, so
+I want to capture the chars prior to the firts comma:
+```{r}
+stones <- stones %>% mutate(stoneLength = sub(',.*', '', stone_length))
+stones$stoneLength <- sub('o', '0', stones$stoneLength)
+stones$stoneLength <- as.numeric(stones$stoneLength)
+stones <- stones %>% mutate(stoneWidth = sub(',.*', '', stone_width))
+stones$stoneWidth <- sub('o', '0', stones$stoneWidth)
+stones$stoneWidth <- as.numeric(stones$stoneWidth)
+regexTest <- select(stones, stone_length, stoneLength, stone_width, stoneWidth)
+```
+
+### Dates
+Convert DOS to date:
+
+```{r}
+stones$dos <- as.Date(stones$dos, format = "%m/%d/%Y")
+```
+
+### reorder the variables to better match our purposes:
+```{r}
+PtData <- select(stones, mrn, age, gender,bmi, weight, any_prior_stone, co_morbids1, co_morbids2, co_morbids3, asa, any_special_anatomy)
+StoneData <- select(stones, side, number_current_stones, stoneLength, stone_sa, stone_size, stone_volume, stoneWidth, radius, isoSphereSA, GCIndex, stone_location, upper, renal_pelvis, lower_pole, lowerPole, ureter, ammoniumacidurate, caox, caphos, cystine, struvite, uricacid, CystineComp, UAComp)
+TxData <- select(stones,additional_stone_procedure, complications, ct, cxr, cxr_findings, ebl_ml, flex_nephroscope, infra_or_supra, length_of_stay, or_time, precr, postcr, stent, unitstransfused, residFrag, anotherProcedure, any_prior_tx)
+stones <- select(stones, names(PtData), names(StoneData), names(TxData))
+```
+
+Refresh the dataframes by type now that we have cleaned and converted:
+```{r}
+# Factors
+factors <- stones[, sapply(stones, is.factor)]
+factorsNames <- names(factors)
+
+# Characters
+chars <- stones[, sapply(stones, is.character)]
+charsNames <- names(chars)
+
+# Integers or numbers
+ints <- stones[, sapply(stones, is.numeric)]
+intsNames <- names(ints)
+# intsNames
+```
+
+## Statistics
+### Summary Stats:
+
+Realized there was a bmi of 175, checked the patient's file and
+found it was really 25.7 so changed below:
+```{r}
+#replace the 175 BMI
+stones[4,4] <- 25.7
+```
+
+```{r eval=FALSE, include=FALSE}
+view(dfSummary(stones))
+```
+
+
+```{r eval=FALSE, include=FALSE}
+descr(stones)
+```
+### Frequency tables
+
+```{r eval=FALSE, include=FALSE}
+sapply(factors, freq, report.nas = FALSE)
+# freq(stones$gender, report.nas = FALSE)
+# freq(stones$side, report.nas = FALSE)
+# freq(stones$residFrag, report.nas = FALSE)
+
+
+```
+
+```{r}
+GCIttest <- t.test(GCIndex ~ residFrag, data = stones)
+GCIttestP <- round(GCIttest$p.value, digits = 3)
+GCIttestP
+```
+```{r}
+chisq.test(stones$gender, stones$residFrag, simulate.p.value = TRUE)
+genTable <- table(stones$gender, stones$residFrag)
+pval <- chisq.test(genTable)
+pval$p.value
+genTable
+```
+
+
+
+```{r}
+ggplot(stones, aes(residFrag, GCIndex)) + geom_boxplot()
+```
+```{r include=FALSE}
+list <- cat(names(stones), sep = "\n")
+```
+
+```{r}
+median(stones$age)
+IQR(stones$age)
+median_iqr(stones$age)
+```
+
+
+```{r}
+chisq.test(stones$any_special_anatomy, stones$residFrag, simulate.p.value = TRUE)
+genTable <- table(stones$any_special_anatomy, stones$residFrag)
+pval <- chisq.test(genTable)
+pval$p.value
+genTable
+```
+
+create table 1, with stats: START HERE****THIS Table has errors. for instance the Left Right part
+I don't think using the stonesFree and stonesResid is correct?
+```{r Table1, knitr.table.format="latex", results='asis'}
+stonesFree <- stones %>% filter(residFrag == "No")
+stonesResid <- stones %>% filter(residFrag == "Yes")
+
+### AGE ###
+medianAge <- median_iqr(stones$age, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", na_rm = TRUE)
+medianAgeFree <- median_iqr(stonesFree$age, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", na_rm = TRUE)
+medianAgeResid <- median_iqr(stonesResid$age, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", na_rm = TRUE)
+statAge <- t.test(age ~ residFrag, data = stones)
+statAgePval <- round(statAge$p.value, digits = 3)
+
+### Men ###
+men <- n_perc0(stones$gender == "M", na_rm = TRUE)
+menFree <- n_perc0(stonesFree$gender == "M", na_rm = TRUE)
+menResid <- n_perc0(stonesResid$gender == "M", na_rm = TRUE)
+statMen <- chisq.test(stones$gender, stones$residFrag, simulate.p.value = TRUE)
+statMenPval <- round(statMen$p.value, digits = 3)
+
+### Weight ###
+meanWeight <- mean_sd(stones$weight, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", denote_sd = "paren", na_rm = TRUE)
+meanWeightFree <- mean_sd(stonesFree$weight, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", denote_sd = "paren", na_rm = TRUE)
+meanWeightResid <- mean_sd(stonesResid$weight, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", denote_sd = "paren", na_rm = TRUE)
+statWeight <- t.test(weight ~ residFrag, data = stones)
+statWeightPval <- round(statWeight$p.value, digits = 3)
+
+### BMI ###
+meanBmi <- mean_sd(stones$bmi, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", denote_sd = "paren", na_rm = TRUE)
+meanBmiFree <- mean_sd(stonesFree$bmi, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", denote_sd = "paren", na_rm = TRUE)
+meanBmiResid <- mean_sd(stonesResid$bmi, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", denote_sd = "paren", na_rm = TRUE)
+statBmi <- t.test(bmi ~ residFrag, data = stones)
+statBmiPval <- round(statBmi$p.value, digits = 3)
+
+### ASA ###
+medianASA <-  median_iqr(stones$asa, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", na_rm = TRUE)
+medianASAFree <-  median_iqr(stonesFree$asa, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", na_rm = TRUE)
+medianASAResid <-  median_iqr(stonesResid$asa, digits = getOption("qwraps2_frmt_digits", 1), show_n = "never", na_rm = TRUE)
+statASA <- t.test(asa ~ residFrag, data = stones)
+statASAPval <- round(statASA$p.value, digits = 3)
+
+### Prior Stones ###
+priorStone <- n_perc0(stones$any_prior_stone == "Yes", na_rm = TRUE)
+priorStoneFree <- n_perc0(stonesFree$any_prior_stone == "Yes", na_rm = TRUE)
+priorStoneResid <- n_perc0(stonesResid$any_prior_stone == "Yes", na_rm = TRUE)
+statPriorStone <- chisq.test(stones$any_prior_stone, stones$residFrag, simulate.p.value = TRUE)
+statPriorStonePval <- round(statPriorStone$p.value, digits = 3)
+
+### Special GU anatomy ###
+specialAnat <- n_perc0(stones$any_special_anatomy == "Yes", na_rm = TRUE)
+specialAnatFree <- n_perc0(stonesFree$any_special_anatomy == "Yes", na_rm = TRUE)
+specialAnatResid <- n_perc0(stonesResid$any_special_anatomy == "Yes", na_rm = TRUE)
+statSpecialAnat <- chisq.test(stones$any_special_anatomy, stones$residFrag, simulate.p.value = TRUE)
+statspecialAnatPval <- round(statSpecialAnat$p.value, digits = 3)
+
+### Left side ###
+leftSide <- n_perc0(stones$side == "Left", na_rm = TRUE)
+leftSideFree <- n_perc0(stonesFree$side == "Left", na_rm = TRUE)
+leftSideResid <- n_perc0(stonesResid$side == "Left", na_rm = TRUE)
+statLeftSide <- chisq.test(stones$side, stones$residFrag, simulate.p.value = TRUE)
+statLeftSidePval <- round(statLeftSide$p.value, digits = 3)
+
+### Right side ###
+rightSide <- n_perc0(stones$side == "Right", na_rm = TRUE)
+rightSideFree <- n_perc0(stonesFree$side == "Right", na_rm = TRUE)
+rightSideResid <- n_perc0(stonesResid$side == "Right", na_rm = TRUE)
+statRightSide <- chisq.test(stones$side, stones$residFrag, simulate.p.value = TRUE)
+statRightSidePval <- round(statRightSide$p.value, digits = 3)
+
+### Upper Pole
+upper <- n_perc0(stones$upper == "Yes", na_rm = TRUE)
+upperFree <- n_perc0(stonesFree$upper == "Yes", na_rm = TRUE)
+upperResid <- n_perc0(stonesResid$upper == "Yes", na_rm = TRUE)
+statUpper <- chisq.test(stones$upper, stones$residFrag, simulate.p.value = TRUE)
+statUpperPval <- round(statUpper$p.value, digits = 3)
+
+###  Lower Pole
+lower <- n_perc0(stones$lowerPole == "Yes", na_rm = TRUE)
+lowerFree <- n_perc0(stonesFree$lowerPole == "Yes", na_rm = TRUE)
+lowerResid <- n_perc0(stonesResid$lowerPole == "Yes", na_rm = TRUE)
+statLower <- chisq.test(stones$lowerPole, stones$residFrag, simulate.p.value = TRUE)
+statLowerPval <- round(statLower$p.value, digits = 3)
+
+###  Renal Pelvis
+pelvis <- n_perc0(stones$renal_pelvis == "Yes", na_rm = TRUE)
+pelvisFree <- n_perc0(stonesFree$renal_pelvis == "Yes", na_rm = TRUE)
+pelvisResid <- n_perc0(stonesResid$renal_pelvis == "Yes", na_rm = TRUE)
+statPelvis <- chisq.test(stones$renal_pelvis, stones$residFrag, simulate.p.value = TRUE)
+statPelvisPval <- round(statPelvis$p.value, digits = 3)
+
+###  Ureter
+ureter <- n_perc0(stones$ureter == "Yes", na_rm = TRUE)
+ureterFree <- n_perc0(stonesFree$ureter == "Yes", na_rm = TRUE)
+ureterResid <- n_perc0(stonesResid$ureter == "Yes", na_rm = TRUE)
+statUreter <- chisq.test(stones$ureter, stones$residFrag, simulate.p.value = TRUE)
+statUreterPval <- round(statUreter$p.value, digits = 3)
+
+### CaOx
+comp_caox <- n_perc0(stones$caox == "Yes", na_rm = TRUE)
+comp_caoxFree <- n_perc0(stonesFree$caox == "Yes", na_rm = TRUE)
+comp_caoxResid <- n_perc0(stonesResid$caox == "Yes", na_rm = TRUE)
+statComp_caox <- chisq.test(stones$caox, stones$residFrag, simulate.p.value = TRUE)
+statComp_caoxPval <- round(statComp_caox$p.value, digits = 3)
+
+### CaPhos
+comp_caphos <- n_perc0(stones$caphos == "Yes", na_rm = TRUE)
+comp_caphosFree <- n_perc0(stonesFree$caphos == "Yes", na_rm = TRUE)
+comp_caphosResid <- n_perc0(stonesResid$caphos == "Yes", na_rm = TRUE)
+statComp_caphos <- chisq.test(stones$caphos, stones$residFrag, simulate.p.value = TRUE)
+statComp_caphosPval <- round(statComp_caphos$p.value, digits = 3)
+
+### Uric Acid
+comp_ua <- n_perc0(stones$uricacid == "Yes", na_rm = TRUE)
+comp_uaFree <- n_perc0(stonesFree$uricacid == "Yes", na_rm = TRUE)
+comp_uaResid <- n_perc0(stonesResid$uricacid == "Yes", na_rm = TRUE)
+statComp_ua <- chisq.test(stones$uricacid, stones$residFrag, simulate.p.value = TRUE)
+statComp_uaPval <- round(statComp_ua$p.value, digits = 3)
+
+### Cystine
+comp_cystine <- n_perc0(stones$cystine == "Yes", na_rm = TRUE)
+comp_cystineFree <- n_perc0(stonesFree$cystine == "Yes", na_rm = TRUE)
+comp_cystineResid <- n_perc0(stonesResid$cystine == "Yes", na_rm = TRUE)
+statComp_cystine <- chisq.test(stones$cystine, stones$residFrag, simulate.p.value = TRUE)
+statComp_cystinePval <- round(statComp_cystine$p.value, digits = 3)
+
+### struvite
+comp_struvite <- n_perc0(stones$struvite == "Yes", na_rm = TRUE)
+comp_struviteFree <- n_perc0(stonesFree$struvite == "Yes", na_rm = TRUE)
+comp_struviteResid <- n_perc0(stonesResid$struvite == "Yes", na_rm = TRUE)
+statComp_struvite <- chisq.test(stones$struvite, stones$residFrag, simulate.p.value = TRUE)
+statComp_struvitePval <- round(statComp_struvite$p.value, digits = 3)
+
+### Make  the dataframe to feed the table ###
+allData <- c(medianAge, men, meanWeight, meanBmi, medianASA, priorStone, specialAnat, "", leftSide, rightSide, "", upper, lower, pelvis, ureter, "", comp_caox, comp_caphos, comp_ua, comp_struvite, comp_cystine)
+freeData <- c(medianAgeFree, menFree, meanWeightFree, meanBmiFree, medianASAFree, priorStoneFree, specialAnatFree, "", leftSideFree, rightSideFree, "", upperFree, lowerFree, pelvisFree, ureterFree, "", comp_caoxFree, comp_caphosFree, comp_uaFree, comp_struviteFree, comp_cystineFree)
+residData <- c(medianAgeResid, menResid, meanWeightResid, meanBmiResid, medianASAResid, priorStoneResid, specialAnatResid, "", leftSideResid, rightSideResid, "", upperResid, lowerResid, pelvisResid, ureterResid, "", comp_caoxResid, comp_caphosResid, comp_uaResid, comp_struviteResid, comp_cystineResid)
+pvals <- c(statAgePval, statMenPval, statWeightPval, statBmiPval, statASAPval, statPriorStonePval, statspecialAnatPval, "", statLeftSidePval, statRightSidePval, "", statUpperPval, statLowerPval, statPelvisPval, statUreterPval, "", statComp_caoxPval, statComp_caphosPval, statComp_uaPval, statComp_struvitePval, statComp_cystinePval)
+t1 <- data.frame(row.names = c("Age, median (IQR), y", "Male, No. (%)", "Weight, mean (SD), kg", "BMI, mean (SD)", "ASA, median (IQR)", "Prior Stones, No.(%)", "Special GU Anatomy, No. (%)", "Side Of Treated Stone, No. (%)", "Left", "Right", "Stone Location (any portion of stone), No. (%)", "Upper Pole", "Lower Pole", "Renal Pelvis", "Ureter", "Stone Composition, No. (%)", "Calcium Oxalate", "Calcium Phosphate", "Uric Acid", "Struvite", "Cystine"), allData, freeData, residData, pvals)
+
+### Create the table with Kable ###
+kable(t1, booktabs = TRUE, caption = "Baseline Characteristics", col.names = c("All Patients (N = 50)", "Stone Free", "Residual Fragments", "P Value")) %>% 
+  kable_styling() %>% 
+  add_header_above(c("", "", "Results After PCNL" = 3)) %>% 
+  group_rows("Patient Related", 1, 7) %>% 
+  group_rows("Stone Related", 8, 21) %>% 
+  add_indent(c(9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21))
+```
+
+
+
+```{r eval=FALSE, include=FALSE}
+my_summary <- 
+  list("Patient Related" =
+         list("Age, median(IQR), y" = ~ qwraps2::median_iqr(age, na_rm = TRUE),
+              "Male, No.(%)" = ~ qwraps2::n_perc0(gender == "M", na_rm = TRUE),
+              "Weight, mean(SD), kg" = ~ qwraps2::mean_sd(weights, na_rm = TRUE)))
+summary_table(stones, my_summary)
+```
+
+
